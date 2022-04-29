@@ -64,6 +64,16 @@ const round = ({ x, y }: Point, p = 1) => ({
   y: Math.round(y * p) / p,
 })
 
+const modwrap = (x: number, N: number) => (x % N + N) % N
+
+const diagonal = (rect: DOMRect) =>
+  Math.sqrt(
+    (rect.right - rect.left) ** 2
+      + (rect.bottom - rect.top) ** 2
+  )
+
+const distance = (a: Point, b: Point) => Math.sqrt((b.x - a.x) ** 2 + (b.y - a.y) ** 2)
+
 export class Surface extends mixter(
   HTMLElement,
   shadow(
@@ -72,11 +82,13 @@ export class Surface extends mixter(
   attrs(
     class {
       pixelRatio = window.devicePixelRatio
-      gridSize = 50
+      gridSize = 20
       minZoom = 0.2
       maxZoom = 10
       minimapScale = 0.2
       minimapRatio = 4 / 3
+      xPattern = '100001'
+      yPattern = '100001'
     }
   ),
   props(
@@ -88,7 +100,12 @@ export class Surface extends mixter(
       target?: DOMMatrix
       scalePoint?: (p: Point) => Point
       normalizePoint?: (p: Point) => Point
-      isPanning = false
+
+      pointers = new Map<number, Point>()
+      pointerCount = 0
+
+      pinchStartMatrix?: DOMMatrix
+      pinchStartDistance?: number
 
       rect?: DOMRect
       prev?: DOMRect
@@ -105,7 +122,7 @@ export class Surface extends mixter(
       frame?: DOMRect
       screen?: DOMRect
       isOverMinimap = false
-      isMinimapPanning = false
+      isMinimapPanning = 0
 
       onResize?: () => void
     }
@@ -245,7 +262,7 @@ export class Surface extends mixter(
       })
     })
 
-    effect(({ gridCtx: ctx, rect: _, grid, zoom, offset, gridSize, pixelRatio }) => {
+    effect(({ gridCtx: ctx, rect: _, grid, zoom, offset, gridSize, xPattern, yPattern, pixelRatio }) => {
       const { width: w, height: h } = grid
       ctx.fillStyle = '#222'
       ctx.fillRect(0, 0, w, h)
@@ -261,18 +278,22 @@ export class Surface extends mixter(
 
       ctx.beginPath()
 
+      let i = 0
       let sx = o.x
-      while (sx > 0) sx -= z
-      while (sx < -z) sx += z
+      while (sx > 0) sx -= z, i--
+      while (sx < -z) sx += z, i++
       for (let x = sx; x < w; x += z) {
+        if (!+xPattern[modwrap(i++, xPattern.length)]) continue
         ctx.moveTo(x, 0)
         ctx.lineTo(x, h)
       }
 
+      i = 0
       let sy = o.y
-      while (sy > 0) sy -= z
-      while (sy < -z) sy += z
+      while (sy > 0) sy -= z, i--
+      while (sy < -z) sy += z, i++
       for (let y = sy; y < h; y += z) {
+        if (!+yPattern[modwrap(i++, yPattern.length)]) continue
         ctx.moveTo(0, y)
         ctx.lineTo(w, y)
       }
@@ -399,24 +420,18 @@ export class Surface extends mixter(
       })
     )
 
-    effect(({ host, inner, scalePoint, matrix, minimap, pixelRatio, frame, screen }) =>
+    effect(({ host, inner, pointers, scalePoint, normalizePoint, matrix, minimap, pixelRatio, frame, screen }) =>
       on()(
         window,
         'pointermove',
-        event()((e: WheelEvent) => {
+        event()((e: PointerEvent) => {
           const p = getRelativeMouseFromEvent(host, e)
 
-          if ($.isPanning) {
-            const diff = scalePoint({
-              x: (p.x - $.origin.x),
-              y: (p.y - $.origin.y),
-            })
+          if ($.isMinimapPanning) {
+            if ($.isMinimapPanning !== e.pointerId) return
             e.preventDefault()
             e.stopPropagation()
-            matrix.translateSelf(diff.x, diff.y)
-            $.offset = { x: matrix.e, y: matrix.f }
-            inner.style.transform = matrix.toString()
-          } else if ($.isMinimapPanning) {
+
             const mfw = minimap.width / frame.width
             const sfw = screen.width / frame.width
 
@@ -433,16 +448,61 @@ export class Surface extends mixter(
                 sfh / mfh * pixelRatio
               ),
             }
+
+            const o = pointers.get(e.pointerId)!
+
             const diff = scalePoint({
-              x: ($.origin.x - p.x) * scale.x,
-              y: ($.origin.y - p.y) * scale.y,
+              x: (o.x - p.x) * scale.x,
+              y: (o.y - p.y) * scale.y,
             })
-            e.preventDefault()
-            e.stopPropagation()
+
             matrix.translateSelf(diff.x, diff.y)
             $.offset = { x: matrix.e, y: matrix.f }
             inner.style.transform = matrix.toString()
+
+            pointers.set(e.pointerId, p)
+          } else if ($.pointerCount && pointers.has(e.pointerId)) {
+            const o = pointers.get(e.pointerId)!
+
+            const diff = scalePoint({
+              x: (p.x - o.x),
+              y: (p.y - o.y),
+            })
+
+            matrix.translateSelf(diff.x, diff.y)
+            $.offset = { x: matrix.e, y: matrix.f }
+            inner.style.transform = matrix.toString()
+
+            pointers.set(e.pointerId, p)
+
+            if ($.pointerCount > 1) {
+              const [o1, o2] = [...pointers.values()]
+              const d = distance(o1, o2)
+              if (!$.pinchStartDistance) {
+                $.pinchStartDistance = d
+                $.pinchStartMatrix = matrix.scale(1)
+              } else {
+                const scaleDiff = d / $.pinchStartDistance
+                const newScale = $.pinchStartMatrix!.a * scaleDiff
+
+                const c = normalizePoint({
+                  x: inner.offsetWidth * 0.5,
+                  y: inner.offsetHeight * 0.5,
+                })
+
+                matrix.translateSelf(c.x, c.y)
+
+                matrix.a = matrix.d = newScale
+
+                matrix.translateSelf(-c.x, -c.y)
+
+                $.zoom = matrix.a
+                $.offset = { x: matrix.e, y: matrix.f }
+                inner.style.transform = matrix.toString()
+              }
+            }
           }
+
           $.origin = p
         })
       )
@@ -452,29 +512,36 @@ export class Surface extends mixter(
       on()(
         minimap,
         'pointerdown',
-        event().stop(() => {
-          $.isMinimapPanning = true
+        event()((e: PointerEvent) => {
+          if (!$.pointerCount) $.isMinimapPanning = e.pointerId
         })
       )
     )
 
-    effect(({ host }) =>
+    effect(({ host, pointers }) =>
       on()(
         host,
         'pointerdown',
-        event()(() => {
-          $.isPanning = true
+        event()((e: PointerEvent) => {
+          const p = getRelativeMouseFromEvent(host, e)
+          pointers.set(e.pointerId, p)
+          $.origin = p
+          $.pointerCount++
         })
       )
     )
 
-    effect(() =>
+    effect(({ pointers }) =>
       on()(
         window,
         'pointerup',
-        event()(() => {
-          $.isPanning = false
-          $.isMinimapPanning = false
+        event()((e: PointerEvent) => {
+          if (pointers.has(e.pointerId)) {
+            pointers.delete(e.pointerId)
+            $.pointerCount--
+            $.pinchStartDistance = 0
+          }
+          if ($.isMinimapPanning === e.pointerId) $.isMinimapPanning = 0
         })
       )
     )
@@ -606,19 +673,25 @@ export class SurfaceMove extends mixter(
             const sa = round(a, snap)
             const sb = round(b, snap)
 
-            const snapTolerance = 0.15
+            const { xPattern, yPattern } = parent
+            const iax = +xPattern[modwrap(sa.x / parent.gridSize, xPattern.length)]
+            const iay = +yPattern[modwrap(sa.y / parent.gridSize, yPattern.length)]
+            const ibx = +xPattern[modwrap(sb.x / parent.gridSize, xPattern.length)]
+            const iby = +yPattern[modwrap(sb.y / parent.gridSize, yPattern.length)]
+
+            const snapTolerance = 0.5
             const snapSize = parent.gridSize * snapTolerance
 
             const t = {
-              x: Math.abs(sa.x - a.x) < snapSize
+              x: iax && Math.abs(sa.x - a.x) < snapSize
                 ? sa.x
-                : Math.abs(sb.x - b.x) < snapSize
+                : ibx && Math.abs(sb.x - b.x) < snapSize
                 ? sb.x - w
                 : a.x,
 
-              y: Math.abs(sa.y - a.y) < snapSize
+              y: iay && Math.abs(sa.y - a.y) < snapSize
                 ? sa.y
-                : Math.abs(sb.y - b.y) < snapSize
+                : iby && Math.abs(sb.y - b.y) < snapSize
                 ? sb.y - h
                 : a.y,
             }
@@ -702,15 +775,19 @@ export class SurfaceResize extends mixter(
 
             const sp = round(p, snap)
 
-            const snapTolerance = 0.15
+            const snapTolerance = 0.5
             const snapSize = parent.gridSize * snapTolerance
 
+            const { xPattern, yPattern } = parent
+            const ipx = +xPattern[modwrap(sp.x / parent.gridSize, xPattern.length)]
+            const ipy = +yPattern[modwrap(sp.y / parent.gridSize, yPattern.length)]
+
             const t = {
-              x: Math.abs(sp.x - p.x) < snapSize
+              x: ipx && Math.abs(sp.x - p.x) < snapSize
                 ? sp.x
                 : p.x,
 
-              y: Math.abs(sp.y - p.y) < snapSize
+              y: ipy && Math.abs(sp.y - p.y) < snapSize
                 ? sp.y
                 : p.y,
             }
