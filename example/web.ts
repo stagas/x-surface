@@ -1,8 +1,8 @@
-import { Surface, SurfaceMove, SurfaceResize } from '../src'
+import { SurfaceElement, SurfaceMoveElement, SurfaceResizeElement } from '../src'
 
-customElements.define('x-surface', Surface)
-customElements.define('x-surface-move', SurfaceMove)
-customElements.define('x-surface-resize', SurfaceResize)
+customElements.define('x-surface', SurfaceElement)
+customElements.define('x-surface-move', SurfaceMoveElement)
+customElements.define('x-surface-resize', SurfaceResizeElement)
 document.body.innerHTML = /*html*/ `
 <style>
   html, body {
@@ -16,6 +16,7 @@ document.body.innerHTML = /*html*/ `
   }
 
   x-surface {
+    display: inline-flex;
     resize: both;
     box-sizing: border-box;
   }
@@ -26,6 +27,7 @@ document.body.innerHTML = /*html*/ `
     border: 2px solid #aaa;
     width: 70px;
     height: 30px;
+    z-index: 1;
     overflow: hidden;
   }
   x-surface-move {
@@ -42,19 +44,20 @@ document.body.innerHTML = /*html*/ `
     display: inline-flex;
     box-sizing: border-box;
     place-items: center;
+    z-index: 1;
     background: #04a;
-    width: 30px;
-    height: 30px;
+    width: 40px;
+    height: 40px;
     transform: rotate(45deg);
-    right: -15px;
-    bottom: -15px;
+    right: -20px;
+    bottom: -20px;
     cursor: nwse-resize;
   }
 </style>
 <x-surface>
-  <div data-x="10" data-y="-10"><x-surface-move>=</x-surface-move><x-surface-resize>:</x-surface-resize>hello</div>
-  <div data-x="100" data-y="-100"><x-surface-move>=</x-surface-move><x-surface-resize>:</x-surface-resize>world</div>
-  <div data-x="320" data-y="-440"><x-surface-move>=</x-surface-move><x-surface-resize>:</x-surface-resize>world</div>
-  <div data-x="530" data-y="-200"><x-surface-move>=</x-surface-move><x-surface-resize>:</x-surface-resize>world</div>
+  <div data-left="10" data-top="-10" data-width="200" data-height="200"><x-surface-move>=</x-surface-move><x-surface-resize>:</x-surface-resize>hello</div>
+  <div data-left="100" data-top="-100" data-width="200" data-height="200"><x-surface-move>=</x-surface-move><x-surface-resize>:</x-surface-resize>world</div>
+  <div data-left="320" data-top="-440" data-width="200" data-height="200"><x-surface-move>=</x-surface-move><x-surface-resize>:</x-surface-resize>world</div>
+  <div data-left="530" data-top="-200" data-width="200" data-height="200"><x-surface-move>=</x-surface-move><x-surface-resize>:</x-surface-resize>world</div>
 </x-surface>
 `
