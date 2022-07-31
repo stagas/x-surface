@@ -1,1 +1,6 @@
 export * from './surface'
+export * from './surface-grid'
+export * from './surface-item'
+export * from './surface-minimap'
+export * from './surface-move'
+export * from './surface-resize'

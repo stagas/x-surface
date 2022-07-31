@@ -11,3 +11,7 @@ declare class MIDIMessageEvent extends Event implements WebMidi.MIDIMessageEvent
   receivedTime: number
   constructor(kind: string, payload?: { data: Uint8Array })
 }
+
+declare interface Event {
+  path: Element[]
+}
