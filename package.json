@@ -83,6 +83,6 @@
     "everyday-utils": "^1.0.0",
     "get-element-offset": "^1.0.1",
     "relative-mouse": "^1.0.1",
-    "sigl": "^0.0.7"
+    "sigl": "^0.0.9"
   }
 }
