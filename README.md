@@ -1,5 +1,5 @@
 <h1>
-x-surface <a href="https://npmjs.org/package/x-surface"><img src="https://img.shields.io/badge/npm-v0.0.3-F00.svg?colorA=000"/></a> <a href="src"><img src="https://img.shields.io/badge/loc-1,250-FFF.svg?colorA=000"/></a> <a href="https://cdn.jsdelivr.net/npm/x-surface@0.0.3/dist/x-surface.min.js"><img src="https://img.shields.io/badge/brotli-21.8K-333.svg?colorA=000"/></a> <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-F0B.svg?colorA=000"/></a>
+x-surface <a href="https://npmjs.org/package/x-surface"><img src="https://img.shields.io/badge/npm-v1.0.0-F00.svg?colorA=000"/></a> <a href="src"><img src="https://img.shields.io/badge/loc-1,250-FFF.svg?colorA=000"/></a> <a href="https://cdn.jsdelivr.net/npm/x-surface@1.0.0/dist/x-surface.min.js"><img src="https://img.shields.io/badge/brotli-21.3K-333.svg?colorA=000"/></a> <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-F0B.svg?colorA=000"/></a>
 </h1>
 
 <p></p>
