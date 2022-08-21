@@ -52,17 +52,30 @@ class SceneElement extends HTMLElement {
   Surface = $.element(SurfaceElement)
   Item = $.element(ItemElement)
 
+  surface?: SurfaceElement
+
   items = new $.RefSet<ItemElement>([
-    { rect: new Rect(0, 0, 100, 100) },
-    { rect: new Rect(200, 0, 100, 100) },
+    { rect: new Rect(0, 0, 500, 500) },
+    { rect: new Rect(600, 0, 500, 500) },
   ])
 
   mounted($: this['$']) {
     $.render(({ Surface, Item, items }) => (
-      <Surface>
+      <Surface ref={$.ref.surface}>
         {items.map(item => <Item {...item} />)}
       </Surface>
     ))
+
+    // $.effect(({ surface }) => {
+    setTimeout(() => {
+      const ev = new WheelEvent('wheel', {
+        deltaY: -800,
+      })
+      Object.defineProperty(ev, 'pageX', { value: 250 })
+      Object.defineProperty(ev, 'pageY', { value: 150 })
+      window.dispatchEvent(ev)
+    }, 500)
+    // })
   }
 }
 
