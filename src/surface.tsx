@@ -312,6 +312,7 @@ export class SurfaceElement extends $.mix(HTMLElement, $.mixins.observed()) {
   viewRect?: Rect
   viewMatrix = new DOMMatrix().scale(0.001)
   viewMatrixString?: string
+  viewStyleTransform?: string
 
   /** Holds the last centered item. */
   centeredItem?: HTMLElement
@@ -332,6 +333,8 @@ export class SurfaceElement extends $.mix(HTMLElement, $.mixins.observed()) {
   items = $(this).slotted.deep(
     el => (el.surface = this, el)
   ) as $.ChildOf<SurfaceItemElement>[]
+
+  hoveringItem?: $.ChildOf<SurfaceItemElement> | null
 
   // pointers
   pointer?: { id: number; pos: Point }
@@ -457,6 +460,24 @@ export class SurfaceElement extends $.mix(HTMLElement, $.mixins.observed()) {
     //   })
     // )
 
+    $.effect(({ items }) =>
+      $.chain(
+        [...items].flatMap(x => [
+          $.on(x).pointerenter(() => {
+            $.hoveringItem = x
+          }),
+          $.on(x).pointerleave(() => {
+            if ($.hoveringItem === x) {
+              $.hoveringItem = null
+            }
+          }),
+        ])
+      )
+    )
+
+    $.effect(({ hoveringItem }) => {
+      $.centeredItem = hoveringItem
+    })
     //
     // view
     //
@@ -836,11 +857,79 @@ export class SurfaceElement extends $.mix(HTMLElement, $.mixins.observed()) {
 
                   if (!isFinite(z)) return
 
+                  const screenPos = getPointerPos(e)
                   const pos = (e.composedPath().includes(minimap)
                     ? viewFrameRect.size.scale(0.5)
-                    : getPointerPos(e)).normalize(
+                    : screenPos).normalize(
                       viewMatrix
                     )
+
+                  const paddedRect = viewFrameRect.zoomLinear(-150)
+                  const item = $.hoveringItem
+                  // items.find(x =>
+                  //   !x.points && pos.withinRect(x.rect.scaleLinear(0, 150 / a).translateSelf(0, -150 / a))
+                  // )
+                  if (item) {
+                    const rect = item.rect //.scaleLinear(0, 150 / a).translateSelf(0, -150 / a)
+                    // screen space destination rect
+                    const maxA = Math.min(
+                      paddedRect.height / rect.height,
+                      paddedRect.width / rect.width
+                    )
+
+                    if (a * z > maxA) z = maxA / a
+
+                    let its = 100
+                    // eslint-disable-next-line no-constant-condition
+                    while (true) {
+                      // sane
+                      if (!--its) break
+                      const destRect = rect.transform(
+                        viewMatrix
+                          .translate(pos.x, pos.y)
+                          .scaleSelf(z)
+                          .translateSelf(-pos.x, -pos.y)
+                      )
+
+                      let moved = false
+
+                      const box = screenPos.withinRect(paddedRect) ? paddedRect : viewFrameRect
+
+                      if (destRect.top < box.top) {
+                        moved = true
+                        viewMatrix.translateSelf(
+                          0,
+                          Math.abs(box.top - destRect.top)
+                        )
+                      } else if (destRect.bottom > box.bottom) {
+                        moved = true
+                        viewMatrix.translateSelf(
+                          0,
+                          -Math.abs(
+                            destRect.bottom - box.bottom
+                          )
+                        )
+                      }
+
+                      if (destRect.left < box.left) {
+                        moved = true
+                        viewMatrix.translateSelf(
+                          Math.abs(box.left - destRect.left),
+                          0
+                        )
+                      } else if (destRect.right > box.right) {
+                        moved = true
+                        viewMatrix.translateSelf(
+                          -Math.abs(
+                            destRect.right - box.right
+                          ),
+                          0
+                        )
+                      }
+
+                      if (!moved) break
+                    }
+                  }
 
                   $.transition.to(SurfaceState.Wheeling, () => {
                     $.viewMatrix = viewMatrix
@@ -962,6 +1051,8 @@ export class SurfaceElement extends $.mix(HTMLElement, $.mixins.observed()) {
       $.queue.raf(matrixString => {
         //!timeLog 'animating'
         //!? 'animating'
+        $.viewStyleTransform = matrixString
+
         view.style.transform = matrixString
       })
     )
